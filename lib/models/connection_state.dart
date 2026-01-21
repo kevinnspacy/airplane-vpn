@@ -1,4 +1,4 @@
-enum ConnectionState {
+enum VpnConnectionState {
   disconnected,
   connecting,
   connected,
@@ -6,27 +6,27 @@ enum ConnectionState {
   error,
 }
 
-extension ConnectionStateExtension on ConnectionState {
+extension VpnConnectionStateExtension on VpnConnectionState {
   String get displayName {
     switch (this) {
-      case ConnectionState.disconnected:
+      case VpnConnectionState.disconnected:
         return 'Отключено';
-      case ConnectionState.connecting:
+      case VpnConnectionState.connecting:
         return 'Подключение...';
-      case ConnectionState.connected:
+      case VpnConnectionState.connected:
         return 'Подключено';
-      case ConnectionState.disconnecting:
+      case VpnConnectionState.disconnecting:
         return 'Отключение...';
-      case ConnectionState.error:
+      case VpnConnectionState.error:
         return 'Ошибка';
     }
   }
   
-  bool get isConnected => this == ConnectionState.connected;
-  bool get isDisconnected => this == ConnectionState.disconnected;
+  bool get isConnected => this == VpnConnectionState.connected;
+  bool get isDisconnected => this == VpnConnectionState.disconnected;
   bool get isTransitioning => 
-      this == ConnectionState.connecting || 
-      this == ConnectionState.disconnecting;
+      this == VpnConnectionState.connecting || 
+      this == VpnConnectionState.disconnecting;
 }
 
 class ConnectionStats {

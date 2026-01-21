@@ -43,12 +43,4 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/animations/
-  
-  fonts:
-    - family: Onest
-      fonts:
-        - asset: assets/fonts/Onest-Regular.ttf
-        - asset: assets/fonts/Onest-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/Onest-Bold.ttf
-          weight: 700
+

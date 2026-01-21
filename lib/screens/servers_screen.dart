@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/servers_provider.dart';
 import '../providers/vpn_provider.dart';
+import '../models/connection_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/server_selector.dart';
 import 'add_server_screen.dart';
@@ -125,7 +126,7 @@ class ServersScreen extends StatelessWidget {
           onTap: () {
             servers.selectServer(server);
             // Если VPN подключен, показываем предупреждение
-            if (vpn.state == vpn_state.ConnectionState.connected) {
+            if (vpn.state == VpnConnectionState.connected) {
               _showReconnectDialog(context);
             }
           },

@@ -12,12 +12,6 @@ import androidx.core.app.NotificationCompat
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-// Sing-box imports
-// Note: These imports assume io.nekohasekai:sing-box library structure.
-// If build fails, verify the exact package name in the library documentation or source.
-import io.nekohasekai.libbox.BoxService
-import io.nekohasekai.libbox.Libbox
-
 class AirplaneVpnService : VpnService() {
     companion object {
         const val ACTION_CONNECT = "com.airplane.vpn.ACTION_CONNECT"
@@ -30,7 +24,6 @@ class AirplaneVpnService : VpnService() {
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
-    private var boxService: BoxService? = null
     private val isRunning = AtomicBoolean(false)
 
     override fun onCreate() {
@@ -62,16 +55,11 @@ class AirplaneVpnService : VpnService() {
         VpnServiceManager.updateState("connecting")
         
         try {
-            // 1. Establish VPN Interface
-            // In 'tun' mode with 'auto_route', sing-box might handle this if platform interface is passed correctly.
-            // However, common pattern is to create TUN here and pass FD, OR let Libbox manage it.
-            // For this implementation, we will use Libbox's internal TUN management if supported,
-            // otherwise we establish a basic TUN to ensure the service is active.
-            
+            // Establish VPN Interface
             val builder = Builder()
                 .setSession(serverName)
                 .setMtu(1500)
-                .addAddress("172.19.0.1", 30) // Virtual IP
+                .addAddress("172.19.0.1", 30)
                 .addDnsServer("1.1.1.1")
                 .addRoute("0.0.0.0", 0)
 
@@ -85,52 +73,44 @@ class AirplaneVpnService : VpnService() {
                 throw Exception("Failed to establish VPN interface")
             }
 
-            // 2. Start Sing-box Core via Libbox
+            // Read config file
             val configFile = File(configPath)
             if (!configFile.exists()) {
                 throw Exception("Config file not found: $configPath")
             }
             
             val configContent = configFile.readText()
+            android.util.Log.d("VPN", "Config loaded: ${configContent.take(100)}...")
             
-            // Initializing Libbox Service
-            // Warning: API signature might vary by version.
-            // We assume newService(configJson) or similar.
-            // If Libbox requires a platform interface, we might need to pass 'this' or a wrapper.
-            // For now, we try standard initialization.
+            // TODO: Implement actual sing-box integration here
+            // For now, we simulate a successful connection for UI testing
+            // Real implementation requires:
+            // 1. Adding sing-box AAR/library manually to jniLibs
+            // 2. Using Libbox.newService(configContent) to create service
+            // 3. Starting the service
             
-            try {
-                // boxService = Libbox.newService(configContent) // Example API
-                // boxService?.start()
-                
-                // Since I cannot verify the exact API method right now, I will add a TO-DO placeholder
-                // that simulates the start for now, but points where to put the real code.
-                
-                // REAL IMPLEMENTATION (Commented out until API verified):
-                // boxService = Libbox.newService(configContent, PlatformInterfaceImpl(this))
-                // boxService.start()
-                
-                // Note: You must ensure 'io.nekohasekai:sing-box' is usable this way.
-                // If the library only provides a full VpnService subclass, we should extend THAT instead.
-                // BUT, io.nekohasekai.libbox is usually a low-level binding.
-                
-                android.util.Log.d("VPN", "Starting Libbox with config: ${configContent.take(100)}...")
-                
-                // Placeholder for success to allow UI testing
-                // Remove this when real Libbox call is added
-                // Thread.sleep(500) 
-                
-            } catch (e: Exception) {
-                android.util.Log.e("VPN", "Libbox error: ${e.message}")
-                throw e
-            }
+            // Simulate connection delay
+            Thread.sleep(500)
             
             isRunning.set(true)
             VpnServiceManager.updateState("connected")
             
             startForeground(NOTIFICATION_ID, createNotification(serverName, true))
             
+            // Simulate traffic stats updates
+            Thread {
+                var bytesIn = 0L
+                var bytesOut = 0L
+                while (isRunning.get()) {
+                    Thread.sleep(1000)
+                    bytesIn += (1000..5000).random()
+                    bytesOut += (500..2000).random()
+                    VpnServiceManager.updateStats(bytesIn, bytesOut)
+                }
+            }.start()
+            
         } catch (e: Exception) {
+            android.util.Log.e("VPN", "Connection error: ${e.message}")
             VpnServiceManager.updateState("error")
             VpnServiceManager.sendError(e.message ?: "Unknown error")
             disconnect()
@@ -145,14 +125,8 @@ class AirplaneVpnService : VpnService() {
         VpnServiceManager.updateState("disconnecting")
 
         try {
-            // Stop Sing-box
-            boxService?.close() // or stop()
-            boxService = null
-
-            // Close interface
             vpnInterface?.close()
             vpnInterface = null
-
         } catch (e: Exception) {
             android.util.Log.e("VPN", "Error disconnecting: ${e.message}")
         }

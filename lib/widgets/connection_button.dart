@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../models/connection_state.dart' as vpn_state;
+import '../models/connection_state.dart';
 import '../theme/app_theme.dart';
 
 class ConnectionButton extends StatefulWidget {
-  final ConnectionState state;
+  final VpnConnectionState state;
   final VoidCallback onPressed;
   
   const ConnectionButton({
@@ -116,9 +116,9 @@ class _ConnectionButtonState extends State<ConnectionButton>
   
   Widget _buildGlow() {
     final Color glowColor = switch (widget.state) {
-      vpn_state.ConnectionState.connected => AppTheme.successColor,
-      vpn_state.ConnectionState.connecting || ConnectionState.disconnecting => AppTheme.warningColor,
-      vpn_state.ConnectionState.error => AppTheme.errorColor,
+      VpnConnectionState.connected => AppTheme.successColor,
+      VpnConnectionState.connecting || VpnConnectionState.disconnecting => AppTheme.warningColor,
+      VpnConnectionState.error => AppTheme.errorColor,
       _ => AppTheme.primaryColor,
     };
     
@@ -172,8 +172,8 @@ class _ConnectionButtonState extends State<ConnectionButton>
   
   Widget _buildMainCircle() {
     final Gradient gradient = switch (widget.state) {
-      vpn_state.ConnectionState.connected => AppTheme.connectedGradient,
-      vpn_state.ConnectionState.error => LinearGradient(
+      VpnConnectionState.connected => AppTheme.connectedGradient,
+      VpnConnectionState.error => LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [AppTheme.errorColor, AppTheme.errorColor.withOpacity(0.8)],
@@ -194,9 +194,9 @@ class _ConnectionButtonState extends State<ConnectionButton>
   
   Widget _buildInnerContent() {
     final IconData icon = switch (widget.state) {
-      vpn_state.ConnectionState.connected => Icons.power_settings_new,
-      vpn_state.ConnectionState.connecting || ConnectionState.disconnecting => Icons.sync,
-      vpn_state.ConnectionState.error => Icons.error_outline,
+      VpnConnectionState.connected => Icons.power_settings_new,
+      VpnConnectionState.connecting || VpnConnectionState.disconnecting => Icons.sync,
+      VpnConnectionState.error => Icons.error_outline,
       _ => Icons.power_settings_new,
     };
     

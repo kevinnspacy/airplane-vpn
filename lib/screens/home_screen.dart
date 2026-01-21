@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/vpn_provider.dart';
 import '../providers/servers_provider.dart';
-import '../models/connection_state.dart' as vpn_state;
+import '../models/connection_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/connection_button.dart';
 import '../widgets/connection_stats_card.dart';
@@ -238,28 +238,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
   
-  Widget _buildStatusText(ConnectionState state) {
+  Widget _buildStatusText(VpnConnectionState state) {
     Color textColor;
     String statusText;
     
-    switch (vpn.state) {
-      case vpn_state.ConnectionState.connected:
+    switch (state) {
+      case VpnConnectionState.connected:
         textColor = AppTheme.successColor;
         statusText = 'Защищено';
-        return;
-      case vpn_state.ConnectionState.connecting:
+      case VpnConnectionState.connecting:
         textColor = AppTheme.warningColor;
         statusText = 'Подключение...';
-        return;
-      case vpn_state.ConnectionState.disconnecting:
+      case VpnConnectionState.disconnecting:
         textColor = AppTheme.warningColor;
         statusText = 'Отключение...';
-        return;
-      case vpn_state.ConnectionState.error:
+      case VpnConnectionState.error:
         textColor = AppTheme.errorColor;
         statusText = 'Ошибка подключения';
-        return;
-      default:
+      case VpnConnectionState.disconnected:
         textColor = AppTheme.textSecondary;
         statusText = 'Не защищено';
     }

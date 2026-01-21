@@ -10,7 +10,7 @@ class VPNProvider extends ChangeNotifier {
   static const _channel = MethodChannel('com.airplane.vpn/vpn');
   static const _eventChannel = EventChannel('com.airplane.vpn/vpn_events');
   
-  ConnectionState _state = ConnectionState.disconnected;
+  VpnConnectionState _state = VpnConnectionState.disconnected;
   ConnectionStats _stats = const ConnectionStats();
   String? _errorMessage;
   ServersProvider? _serversProvider;
@@ -18,7 +18,7 @@ class VPNProvider extends ChangeNotifier {
   Timer? _statsTimer;
   StreamSubscription? _eventSubscription;
   
-  ConnectionState get state => _state;
+  VpnConnectionState get state => _state;
   ConnectionStats get stats => _stats;
   String? get errorMessage => _errorMessage;
   VlessConfig? get currentServer => _serversProvider?.selectedServer;
@@ -53,7 +53,7 @@ class VPNProvider extends ChangeNotifier {
           
         case 'error':
           _errorMessage = event['message'] as String?;
-          _updateState(ConnectionState.error);
+          _updateState(VpnConnectionState.error);
           break;
       }
     }
@@ -62,25 +62,25 @@ class VPNProvider extends ChangeNotifier {
   void _handleVpnError(dynamic error) {
     print('VPN Event Error: $error');
     _errorMessage = error.toString();
-    _updateState(ConnectionState.error);
+    _updateState(VpnConnectionState.error);
   }
   
-  ConnectionState _parseState(String state) {
+  VpnConnectionState _parseState(String state) {
     switch (state) {
       case 'connected':
-        return ConnectionState.connected;
+        return VpnConnectionState.connected;
       case 'connecting':
-        return ConnectionState.connecting;
+        return VpnConnectionState.connecting;
       case 'disconnecting':
-        return ConnectionState.disconnecting;
+        return VpnConnectionState.disconnecting;
       case 'error':
-        return ConnectionState.error;
+        return VpnConnectionState.error;
       default:
-        return ConnectionState.disconnected;
+        return VpnConnectionState.disconnected;
     }
   }
   
-  void _updateState(ConnectionState newState) {
+  void _updateState(VpnConnectionState newState) {
     if (_state == newState) return;
     
     final wasConnected = _state.isConnected;
@@ -93,7 +93,7 @@ class VPNProvider extends ChangeNotifier {
       _stopStatsTimer();
     }
     
-    if (newState != ConnectionState.error) {
+    if (newState != VpnConnectionState.error) {
       _errorMessage = null;
     }
     
@@ -128,11 +128,11 @@ class VPNProvider extends ChangeNotifier {
     final server = currentServer;
     if (server == null) {
       _errorMessage = 'Сервер не выбран';
-      _updateState(ConnectionState.error);
+      _updateState(VpnConnectionState.error);
       return;
     }
     
-    _updateState(ConnectionState.connecting);
+    _updateState(VpnConnectionState.connecting);
     _errorMessage = null;
     
     try {
@@ -148,10 +148,10 @@ class VPNProvider extends ChangeNotifier {
       }
     } on PlatformException catch (e) {
       _errorMessage = e.message ?? 'Ошибка платформы';
-      _updateState(ConnectionState.error);
+      _updateState(VpnConnectionState.error);
     } catch (e) {
       _errorMessage = e.toString();
-      _updateState(ConnectionState.error);
+      _updateState(VpnConnectionState.error);
     }
   }
   
@@ -159,16 +159,16 @@ class VPNProvider extends ChangeNotifier {
   Future<void> disconnect() async {
     if (_state.isDisconnected || _state.isTransitioning) return;
     
-    _updateState(ConnectionState.disconnecting);
+    _updateState(VpnConnectionState.disconnecting);
     
     try {
       await _channel.invokeMethod('disconnect');
     } on PlatformException catch (e) {
       _errorMessage = e.message ?? 'Ошибка отключения';
-      _updateState(ConnectionState.error);
+      _updateState(VpnConnectionState.error);
     } catch (e) {
       _errorMessage = e.toString();
-      _updateState(ConnectionState.error);
+      _updateState(VpnConnectionState.error);
     }
   }
   
@@ -176,7 +176,7 @@ class VPNProvider extends ChangeNotifier {
   Future<void> toggle() async {
     if (_state.isConnected) {
       await disconnect();
-    } else if (_state.isDisconnected || _state == ConnectionState.error) {
+    } else if (_state.isDisconnected || _state == VpnConnectionState.error) {
       await connect();
     }
   }
