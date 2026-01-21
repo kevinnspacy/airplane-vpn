@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'providers/vpn_provider.dart';
 import 'providers/servers_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/subscription_provider.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -39,6 +40,7 @@ class AirplaneVPNApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => ServersProvider()),
+        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProxyProvider<ServersProvider, VPNProvider>(
           create: (_) => VPNProvider(),
           update: (_, servers, vpn) => vpn!..updateServers(servers),

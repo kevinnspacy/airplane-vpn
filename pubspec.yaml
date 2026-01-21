@@ -28,6 +28,9 @@ dependencies:
   package_info_plus: ^5.0.1
   connectivity_plus: ^5.0.2
   
+  # HTTP Client
+  http: ^1.2.0
+  
   # Permissions
   permission_handler: ^11.1.0
 

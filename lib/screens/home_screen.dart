@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/vpn_provider.dart';
 import '../providers/servers_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../models/connection_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/connection_button.dart';
 import '../widgets/connection_stats_card.dart';
 import '../widgets/server_selector.dart';
+import '../widgets/subscription_card.dart';
 import 'servers_screen.dart';
 import 'settings_screen.dart';
 import 'add_server_screen.dart';
@@ -113,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildContent(BuildContext context) {
     final servers = context.watch<ServersProvider>();
     final vpn = context.watch<VPNProvider>();
+    final subscription = context.watch<SubscriptionProvider>();
     
     if (servers.isLoading) {
       return const Center(
@@ -167,6 +170,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ServerSelector(
             server: servers.selectedServer,
             onTap: () => _openServersList(context),
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Subscription status card
+          SubscriptionCard(
+            subscription: subscription.subscription,
+            isLoading: subscription.isLoading,
+            onRefresh: subscription.fetchSubscription,
           ),
           
           const SizedBox(height: 20),
