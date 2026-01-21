@@ -10,15 +10,25 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import io.nekohasekai.libbox.BoxService
 import io.nekohasekai.libbox.CommandServer
+import io.nekohasekai.libbox.CommandServerHandler
+import io.nekohasekai.libbox.ConnectionOwner
+import io.nekohasekai.libbox.InterfaceUpdateListener
 import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.libbox.LocalDNSTransport
+import io.nekohasekai.libbox.NetworkInterfaceIterator
+import io.nekohasekai.libbox.OverrideOptions
 import io.nekohasekai.libbox.PlatformInterface
+import io.nekohasekai.libbox.SetupOptions
+import io.nekohasekai.libbox.StringIterator
+import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
+import io.nekohasekai.libbox.WIFIState
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import io.nekohasekai.libbox.Notification as LibboxNotification
 
-class AirplaneVpnService : VpnService(), PlatformInterface {
+class AirplaneVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     companion object {
         private const val TAG = "AirplaneVPN"
         const val ACTION_CONNECT = "com.airplane.vpn.ACTION_CONNECT"
@@ -31,7 +41,7 @@ class AirplaneVpnService : VpnService(), PlatformInterface {
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
-    private var boxService: BoxService? = null
+    private var commandServer: CommandServer? = null
     private val isRunning = AtomicBoolean(false)
     private var serverName: String = "VPN Server"
 
@@ -74,19 +84,23 @@ class AirplaneVpnService : VpnService(), PlatformInterface {
             val configContent = configFile.readText()
             Log.d(TAG, "Config loaded, length: ${configContent.length}")
 
-            // Initialize Libbox
-            val options = Libbox.newSetupOptions().apply {
-                basePath = filesDir.absolutePath
-                workingPath = cacheDir.absolutePath
-                tempPath = cacheDir.absolutePath
-            }
+            // Setup Libbox paths
+            val setupOptions = SetupOptions()
+            setupOptions.setBasePath(filesDir.absolutePath)
+            setupOptions.setWorkingPath(cacheDir.absolutePath)
+            setupOptions.setTempPath(cacheDir.absolutePath)
             
-            Libbox.setup(options)
+            Libbox.setup(setupOptions)
             Log.d(TAG, "Libbox setup complete")
 
-            // Create and start BoxService
-            boxService = Libbox.newService(configContent, this)
-            boxService?.start()
+            // Create CommandServer
+            commandServer = CommandServer(this, this)
+            commandServer?.start()
+            Log.d(TAG, "CommandServer started")
+            
+            // Start the service with config
+            val overrideOptions = OverrideOptions()
+            commandServer?.startOrReloadService(configContent, overrideOptions)
             
             isRunning.set(true)
             VpnServiceManager.updateState("connected")
@@ -111,8 +125,9 @@ class AirplaneVpnService : VpnService(), PlatformInterface {
         VpnServiceManager.updateState("disconnecting")
 
         try {
-            boxService?.close()
-            boxService = null
+            commandServer?.closeService()
+            commandServer?.close()
+            commandServer = null
             
             vpnInterface?.close()
             vpnInterface = null
@@ -128,7 +143,7 @@ class AirplaneVpnService : VpnService(), PlatformInterface {
         Log.i(TAG, "VPN disconnected")
     }
 
-    // PlatformInterface implementation
+    // ==================== PlatformInterface implementation ====================
     
     override fun autoDetectInterfaceControl(fd: Int) {
         protect(fd)
@@ -141,31 +156,52 @@ class AirplaneVpnService : VpnService(), PlatformInterface {
             .setSession(serverName)
             .setMtu(options.mtu)
         
-        // Add addresses
-        val inet4Address = options.inet4Address
-        if (inet4Address != null && inet4Address.hasNext()) {
-            val addr = inet4Address.next()
-            builder.addAddress(addr.address, addr.prefix)
+        // Add IPv4 address
+        try {
+            val inet4Address = options.inet4Address
+            if (inet4Address != null && inet4Address.hasNext()) {
+                val addr = inet4Address.next()
+                builder.addAddress(addr.address(), addr.prefix())
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No IPv4 address: ${e.message}")
         }
         
-        val inet6Address = options.inet6Address
-        if (inet6Address != null && inet6Address.hasNext()) {
-            val addr = inet6Address.next()
-            builder.addAddress(addr.address, addr.prefix)
+        // Add IPv6 address  
+        try {
+            val inet6Address = options.inet6Address
+            if (inet6Address != null && inet6Address.hasNext()) {
+                val addr = inet6Address.next()
+                builder.addAddress(addr.address(), addr.prefix())
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No IPv6 address: ${e.message}")
         }
         
         // Add DNS servers
-        val dnsServers = options.dnsServerAddress
-        if (dnsServers != null) {
-            while (dnsServers.hasNext()) {
-                builder.addDnsServer(dnsServers.next())
+        try {
+            val dnsBox = options.dnsServerAddress
+            val dnsServer = dnsBox?.value
+            if (!dnsServer.isNullOrEmpty()) {
+                builder.addDnsServer(dnsServer)
+            } else {
+                builder.addDnsServer("1.1.1.1")
+                builder.addDnsServer("8.8.8.8")
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "DNS error: ${e.message}")
+            builder.addDnsServer("1.1.1.1")
+            builder.addDnsServer("8.8.8.8")
         }
         
         // Add routes
-        if (options.isAutoRoute) {
+        try {
+            if (options.autoRoute) {
+                builder.addRoute("0.0.0.0", 0)
+                builder.addRoute("::", 0)
+            }
+        } catch (e: Exception) {
             builder.addRoute("0.0.0.0", 0)
-            builder.addRoute("::", 0)
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -177,41 +213,71 @@ class AirplaneVpnService : VpnService(), PlatformInterface {
         return vpnInterface?.fd ?: throw Exception("Failed to establish VPN interface")
     }
 
-    override fun closeTun() {
-        Log.d(TAG, "Closing TUN interface")
-        vpnInterface?.close()
-        vpnInterface = null
-    }
-
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
-    
-    override fun usePlatformDefaultInterfaceMonitor(): Boolean = false
-    
-    override fun usePlatformInterfaceGetter(): Boolean = false
     
     override fun useProcFS(): Boolean = false
     
     override fun findConnectionOwner(
         ipProtocol: Int,
-        sourceAddress: String,
+        sourceAddress: String?,
         sourcePort: Int,
-        destinationAddress: String,
+        destinationAddress: String?,
         destinationPort: Int
-    ): Int = 0
-    
-    override fun packageNameByUid(uid: Int): String = ""
-    
-    override fun uidByPackageName(packageName: String): Int = 0
-    
-    override fun writeLog(message: String) {
-        Log.d(TAG, message)
+    ): ConnectionOwner {
+        // Return an empty ConnectionOwner instead of null to prevent Go panic
+        return ConnectionOwner()
     }
     
-    override fun getInterfaces(): String = ""
-    
-    override fun underNetworkExtension(): Boolean = false
+    override fun getInterfaces(): NetworkInterfaceIterator? = null
 
-    // Notification management
+    override fun underNetworkExtension(): Boolean = false
+    
+    override fun includeAllNetworks(): Boolean = false
+    
+    override fun clearDNSCache() {
+        // No-op
+    }
+    
+    override fun readWIFIState(): WIFIState? = null
+    
+    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
+        // No-op
+    }
+    
+    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
+        // No-op
+    }
+    
+    override fun localDNSTransport(): LocalDNSTransport? = null
+    
+    override fun sendNotification(notification: LibboxNotification?) {
+        // Handle libbox notification if needed
+    }
+    
+    override fun systemCertificates(): StringIterator? = null
+
+    // ==================== CommandServerHandler implementation ====================
+    
+    override fun getSystemProxyStatus(): SystemProxyStatus? = null
+    
+    override fun serviceReload() {
+        Log.d(TAG, "Service reload requested")
+    }
+    
+    override fun serviceStop() {
+        Log.d(TAG, "Service stop requested")
+        disconnect()
+    }
+    
+    override fun setSystemProxyEnabled(enabled: Boolean) {
+        Log.d(TAG, "System proxy enabled: $enabled")
+    }
+    
+    override fun writeDebugMessage(message: String?) {
+        message?.let { Log.d(TAG, "Debug: $it") }
+    }
+
+    // ==================== Notification management ====================
     
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -7,12 +7,16 @@ class SubscriptionCard extends StatelessWidget {
   final SubscriptionStatus? subscription;
   final bool isLoading;
   final VoidCallback? onRefresh;
+  final VoidCallback? onTapLogin;
+  final bool hasTelegramId;
 
   const SubscriptionCard({
     super.key,
     this.subscription,
     this.isLoading = false,
     this.onRefresh,
+    this.onTapLogin,
+    this.hasTelegramId = true,
   });
 
   @override
@@ -88,6 +92,39 @@ class SubscriptionCard extends StatelessWidget {
           color: AppTheme.textSecondary,
           fontSize: 14,
         ),
+      );
+    }
+
+    // No Telegram ID linked - show login prompt
+    if (!hasTelegramId) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Привяжите Telegram для просмотра подписки',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onTapLogin,
+              icon: const Icon(Icons.login, size: 18),
+              label: const Text('Ввести Telegram ID'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primaryColor,
+                side: const BorderSide(color: AppTheme.primaryColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
       );
     }
 

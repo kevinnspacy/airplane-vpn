@@ -8,6 +8,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _splitTunneling = false;
   List<String> _excludedApps = [];
   bool _isLoading = true;
+  int? _telegramId;
   
   bool get killSwitch => _killSwitch;
   bool get autoConnect => _autoConnect;
@@ -15,6 +16,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get splitTunneling => _splitTunneling;
   List<String> get excludedApps => _excludedApps;
   bool get isLoading => _isLoading;
+  int? get telegramId => _telegramId;
+  bool get hasTelegramId => _telegramId != null;
   
   SettingsProvider() {
     _loadSettings();
@@ -29,6 +32,12 @@ class SettingsProvider extends ChangeNotifier {
       _showNotification = prefs.getBool('showNotification') ?? true;
       _splitTunneling = prefs.getBool('splitTunneling') ?? false;
       _excludedApps = prefs.getStringList('excludedApps') ?? [];
+      
+      // Load Telegram ID
+      final savedId = prefs.getInt('telegramId');
+      if (savedId != null && savedId > 0) {
+        _telegramId = savedId;
+      }
     } catch (e) {
       print('Error loading settings: $e');
     } finally {
@@ -93,5 +102,29 @@ class SettingsProvider extends ChangeNotifier {
     _excludedApps.remove(packageName);
     notifyListeners();
     await _saveSettings();
+  }
+
+  /// Set Telegram ID for subscription lookup
+  Future<void> setTelegramId(int id) async {
+    _telegramId = id;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('telegramId', id);
+    } catch (e) {
+      print('Error saving Telegram ID: $e');
+    }
+  }
+
+  /// Clear Telegram ID (logout)
+  Future<void> clearTelegramId() async {
+    _telegramId = null;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('telegramId');
+    } catch (e) {
+      print('Error clearing Telegram ID: $e');
+    }
   }
 }
