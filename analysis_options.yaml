@@ -1,0 +1,16 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_const_literals_to_create_immutables
+    - prefer_final_fields
+    - prefer_final_locals
+    - avoid_print: false
+    - use_key_in_widget_constructors
+    - prefer_single_quotes
+
+analyzer:
+  errors:
+    invalid_annotation_target: ignore
