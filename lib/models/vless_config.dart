@@ -180,47 +180,34 @@ class VlessConfig {
       'dns': {
         'servers': [
           {
-            'tag': 'dns-remote',
-            'address': '1.1.1.1',
+            'tag': 'remote',
+            'address': 'tls://1.1.1.1',
             'detour': 'proxy',
           },
           {
-            'tag': 'dns-local',
-            'address': 'local',
-          },
-          {
-            'tag': 'dns-block',
-            'address': 'rcode://success',
+            'tag': 'direct-dns',
+            'address': 'https://dns.google/dns-query',
+            'detour': 'direct',
           },
         ],
         'rules': [
           {
-            'outbound': ['any'],
-            'server': 'dns-local',
+            'outbound': 'any',
+            'server': 'direct-dns',
           },
         ],
-        'final': 'dns-remote',
-        'strategy': 'prefer_ipv4',
-        'independent_cache': true,
+        'final': 'remote',
       },
       'inbounds': [
         {
           'type': 'tun',
           'tag': 'tun-in',
           'inet4_address': '172.19.0.1/30',
-          'inet6_address': 'fdfe:dcba:9876::1/126',
-          'mtu': 9000,
+          'mtu': 1500,
           'auto_route': true,
           'strict_route': false,
-          'endpoint_independent_nat': true,
-          'stack': 'mixed',  // 'mixed' is best for Android
-          'platform': {
-            'http_proxy': {
-              'enabled': false,
-            },
-          },
+          'stack': 'system',
           'sniff': true,
-          'sniff_override_destination': false,
         },
       ],
       'outbounds': [
@@ -240,7 +227,6 @@ class VlessConfig {
       ],
       'route': {
         'auto_detect_interface': true,
-        'override_android_vpn': true,
         'final': 'proxy',
         'rules': [
           {
@@ -249,10 +235,6 @@ class VlessConfig {
           },
           {
             'ip_is_private': true,
-            'outbound': 'direct',
-          },
-          {
-            'domain_suffix': ['.local', '.lan'],
             'outbound': 'direct',
           },
         ],
