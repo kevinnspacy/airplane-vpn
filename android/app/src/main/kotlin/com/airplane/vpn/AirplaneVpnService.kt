@@ -8,12 +8,19 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import io.nekohasekai.libbox.BoxService
+import io.nekohasekai.libbox.CommandServer
+import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.libbox.PlatformInterface
+import io.nekohasekai.libbox.TunOptions
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-class AirplaneVpnService : VpnService() {
+class AirplaneVpnService : VpnService(), PlatformInterface {
     companion object {
+        private const val TAG = "AirplaneVPN"
         const val ACTION_CONNECT = "com.airplane.vpn.ACTION_CONNECT"
         const val ACTION_DISCONNECT = "com.airplane.vpn.ACTION_DISCONNECT"
         const val EXTRA_CONFIG_PATH = "config_path"
@@ -24,20 +31,23 @@ class AirplaneVpnService : VpnService() {
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
+    private var boxService: BoxService? = null
     private val isRunning = AtomicBoolean(false)
+    private var serverName: String = "VPN Server"
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        Log.d(TAG, "VPN Service created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_CONNECT -> {
                 val configPath = intent.getStringExtra(EXTRA_CONFIG_PATH)
-                val serverName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: "VPN Server"
+                serverName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: "VPN Server"
                 if (configPath != null) {
-                    connect(configPath, serverName)
+                    connect(configPath)
                 }
             }
             ACTION_DISCONNECT -> {
@@ -47,70 +57,45 @@ class AirplaneVpnService : VpnService() {
         return START_STICKY
     }
 
-    private fun connect(configPath: String, serverName: String) {
+    private fun connect(configPath: String) {
         if (isRunning.get()) {
+            Log.w(TAG, "VPN already running")
             return
         }
 
         VpnServiceManager.updateState("connecting")
         
         try {
-            // Establish VPN Interface
-            val builder = Builder()
-                .setSession(serverName)
-                .setMtu(1500)
-                .addAddress("172.19.0.1", 30)
-                .addDnsServer("1.1.1.1")
-                .addRoute("0.0.0.0", 0)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                builder.setMetered(false)
-            }
-
-            vpnInterface = builder.establish()
-            
-            if (vpnInterface == null) {
-                throw Exception("Failed to establish VPN interface")
-            }
-
-            // Read config file
+            // Read config content
             val configFile = File(configPath)
             if (!configFile.exists()) {
                 throw Exception("Config file not found: $configPath")
             }
-            
             val configContent = configFile.readText()
-            android.util.Log.d("VPN", "Config loaded: ${configContent.take(100)}...")
+            Log.d(TAG, "Config loaded, length: ${configContent.length}")
+
+            // Initialize Libbox
+            val options = Libbox.newSetupOptions().apply {
+                basePath = filesDir.absolutePath
+                workingPath = cacheDir.absolutePath
+                tempPath = cacheDir.absolutePath
+            }
             
-            // TODO: Implement actual sing-box integration here
-            // For now, we simulate a successful connection for UI testing
-            // Real implementation requires:
-            // 1. Adding sing-box AAR/library manually to jniLibs
-            // 2. Using Libbox.newService(configContent) to create service
-            // 3. Starting the service
-            
-            // Simulate connection delay
-            Thread.sleep(500)
+            Libbox.setup(options)
+            Log.d(TAG, "Libbox setup complete")
+
+            // Create and start BoxService
+            boxService = Libbox.newService(configContent, this)
+            boxService?.start()
             
             isRunning.set(true)
             VpnServiceManager.updateState("connected")
             
             startForeground(NOTIFICATION_ID, createNotification(serverName, true))
-            
-            // Simulate traffic stats updates
-            Thread {
-                var bytesIn = 0L
-                var bytesOut = 0L
-                while (isRunning.get()) {
-                    Thread.sleep(1000)
-                    bytesIn += (1000..5000).random()
-                    bytesOut += (500..2000).random()
-                    VpnServiceManager.updateStats(bytesIn, bytesOut)
-                }
-            }.start()
-            
+            Log.i(TAG, "VPN connected to $serverName")
+
         } catch (e: Exception) {
-            android.util.Log.e("VPN", "Connection error: ${e.message}")
+            Log.e(TAG, "Connection error: ${e.message}", e)
             VpnServiceManager.updateState("error")
             VpnServiceManager.sendError(e.message ?: "Unknown error")
             disconnect()
@@ -122,13 +107,17 @@ class AirplaneVpnService : VpnService() {
             return
         }
 
+        Log.d(TAG, "Disconnecting VPN")
         VpnServiceManager.updateState("disconnecting")
 
         try {
+            boxService?.close()
+            boxService = null
+            
             vpnInterface?.close()
             vpnInterface = null
         } catch (e: Exception) {
-            android.util.Log.e("VPN", "Error disconnecting: ${e.message}")
+            Log.e(TAG, "Error disconnecting: ${e.message}", e)
         }
 
         VpnServiceManager.updateState("disconnected")
@@ -136,8 +125,94 @@ class AirplaneVpnService : VpnService() {
         
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+        Log.i(TAG, "VPN disconnected")
     }
 
+    // PlatformInterface implementation
+    
+    override fun autoDetectInterfaceControl(fd: Int) {
+        protect(fd)
+    }
+
+    override fun openTun(options: TunOptions): Int {
+        Log.d(TAG, "Opening TUN interface")
+        
+        val builder = Builder()
+            .setSession(serverName)
+            .setMtu(options.mtu)
+        
+        // Add addresses
+        val inet4Address = options.inet4Address
+        if (inet4Address != null && inet4Address.hasNext()) {
+            val addr = inet4Address.next()
+            builder.addAddress(addr.address, addr.prefix)
+        }
+        
+        val inet6Address = options.inet6Address
+        if (inet6Address != null && inet6Address.hasNext()) {
+            val addr = inet6Address.next()
+            builder.addAddress(addr.address, addr.prefix)
+        }
+        
+        // Add DNS servers
+        val dnsServers = options.dnsServerAddress
+        if (dnsServers != null) {
+            while (dnsServers.hasNext()) {
+                builder.addDnsServer(dnsServers.next())
+            }
+        }
+        
+        // Add routes
+        if (options.isAutoRoute) {
+            builder.addRoute("0.0.0.0", 0)
+            builder.addRoute("::", 0)
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            builder.setMetered(false)
+        }
+        
+        vpnInterface = builder.establish()
+        
+        return vpnInterface?.fd ?: throw Exception("Failed to establish VPN interface")
+    }
+
+    override fun closeTun() {
+        Log.d(TAG, "Closing TUN interface")
+        vpnInterface?.close()
+        vpnInterface = null
+    }
+
+    override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
+    
+    override fun usePlatformDefaultInterfaceMonitor(): Boolean = false
+    
+    override fun usePlatformInterfaceGetter(): Boolean = false
+    
+    override fun useProcFS(): Boolean = false
+    
+    override fun findConnectionOwner(
+        ipProtocol: Int,
+        sourceAddress: String,
+        sourcePort: Int,
+        destinationAddress: String,
+        destinationPort: Int
+    ): Int = 0
+    
+    override fun packageNameByUid(uid: Int): String = ""
+    
+    override fun uidByPackageName(packageName: String): Int = 0
+    
+    override fun writeLog(message: String) {
+        Log.d(TAG, message)
+    }
+    
+    override fun getInterfaces(): String = ""
+    
+    override fun underNetworkExtension(): Boolean = false
+
+    // Notification management
+    
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
