@@ -7,16 +7,14 @@ class SubscriptionCard extends StatelessWidget {
   final SubscriptionStatus? subscription;
   final bool isLoading;
   final VoidCallback? onRefresh;
-  final VoidCallback? onTapLogin;
-  final bool hasTelegramId;
+  final bool hasServer;
 
   const SubscriptionCard({
     super.key,
     this.subscription,
     this.isLoading = false,
     this.onRefresh,
-    this.onTapLogin,
-    this.hasTelegramId = true,
+    this.hasServer = false,
   });
 
   @override
@@ -95,33 +93,24 @@ class SubscriptionCard extends StatelessWidget {
       );
     }
 
-    // No Telegram ID linked - show login prompt
-    if (!hasTelegramId) {
+    // No server added yet - show instruction
+    if (!hasServer) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Привяжите Telegram для просмотра подписки',
+            'Добавьте сервер для просмотра подписки',
             style: TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 14,
             ),
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onTapLogin,
-              icon: const Icon(Icons.login, size: 18),
-              label: const Text('Ввести Telegram ID'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.primaryColor,
-                side: const BorderSide(color: AppTheme.primaryColor),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
+          const SizedBox(height: 8),
+          Text(
+            'Откройте @freeddomm_bot → получите ключ → QR код',
+            style: TextStyle(
+              color: AppTheme.primaryColor.withOpacity(0.8),
+              fontSize: 12,
             ),
           ),
         ],
@@ -141,7 +130,7 @@ class SubscriptionCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Активируйте в @freeddomm_bot',
+            'Продлите в @freeddomm_bot',
             style: TextStyle(
               color: AppTheme.primaryColor.withOpacity(0.8),
               fontSize: 12,

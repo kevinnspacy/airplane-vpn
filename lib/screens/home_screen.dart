@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/vpn_provider.dart';
 import '../providers/servers_provider.dart';
-import '../providers/settings_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../models/connection_state.dart';
 import '../theme/app_theme.dart';
@@ -13,7 +12,6 @@ import '../widgets/subscription_card.dart';
 import 'servers_screen.dart';
 import 'settings_screen.dart';
 import 'add_server_screen.dart';
-import 'telegram_id_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -48,11 +46,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (_didAutoLoadSubscription) return;
     _didAutoLoadSubscription = true;
 
-    final settings = context.read<SettingsProvider>();
+    final servers = context.read<ServersProvider>();
     final subscription = context.read<SubscriptionProvider>();
     
-    if (settings.telegramId != null) {
-      subscription.setTelegramId(settings.telegramId!);
+    // Find FreedomVPN server and extract username
+    for (final server in servers.servers) {
+      final username = SubscriptionProvider.extractUsername(server.name);
+      if (username != null) {
+        subscription.fetchByUsername(username);
+        break;
+      }
     }
   }
   
@@ -196,9 +199,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           SubscriptionCard(
             subscription: subscription.subscription,
             isLoading: subscription.isLoading,
-            hasTelegramId: context.watch<SettingsProvider>().hasTelegramId,
-            onRefresh: subscription.fetchSubscription,
-            onTapLogin: () => _openTelegramIdScreen(context),
+            hasServer: subscription.hasLinkedServer,
+            onRefresh: subscription.refresh,
           ),
           
           const SizedBox(height: 20),
@@ -366,20 +368,5 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       context,
       MaterialPageRoute(builder: (_) => const AddServerScreen()),
     );
-  }
-
-  Future<void> _openTelegramIdScreen(BuildContext context) async {
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => const TelegramIdScreen()),
-    );
-    
-    // Reload subscription if ID was set
-    if (result == true && mounted) {
-      final settings = context.read<SettingsProvider>();
-      if (settings.telegramId != null) {
-        context.read<SubscriptionProvider>().setTelegramId(settings.telegramId!);
-      }
-    }
   }
 }

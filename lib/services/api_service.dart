@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/subscription_status.dart';
@@ -16,26 +17,54 @@ class ApiService {
   /// Get subscription status for a user
   /// 
   /// [telegramId] - The user's Telegram ID
-  /// Returns [SubscriptionStatus] or null if request fails
+  /// Fetch subscription status by Telegram ID
   static Future<SubscriptionStatus?> getSubscriptionStatus(int telegramId) async {
     try {
-      final uri = Uri.parse('$baseUrl/api/subscription/$telegramId')
-          .replace(queryParameters: {'api_key': apiKey});
-      
+      final uri = Uri.parse('$baseUrl/api/subscription/$telegramId?api_key=$apiKey');
       final response = await http.get(uri).timeout(timeout);
       
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         return SubscriptionStatus.fromJson(json);
       } else if (response.statusCode == 403) {
-        throw Exception('Invalid API key');
-      } else if (response.statusCode == 404) {
-        return SubscriptionStatus(active: false, message: 'User not found');
-      } else {
-        throw Exception('HTTP ${response.statusCode}: ${response.body}');
+        print('ApiService: Invalid API key');
+        return null;
       }
+      return null;
+    } on TimeoutException {
+      print('ApiService: Request timeout');
+      return null;
     } catch (e) {
       print('ApiService.getSubscriptionStatus error: $e');
+      return null;
+    }
+  }
+
+  /// Fetch subscription status by Marzban username (auto-detected from VLESS config)
+  /// This is the preferred method - no need for user to enter Telegram ID!
+  static Future<SubscriptionStatus?> getSubscriptionByUsername(String marzbanUsername) async {
+    try {
+      // URL encode the username just in case
+      final encodedUsername = Uri.encodeComponent(marzbanUsername);
+      final uri = Uri.parse('$baseUrl/api/subscription/by-username/$encodedUsername?api_key=$apiKey');
+      final response = await http.get(uri).timeout(timeout);
+      
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return SubscriptionStatus.fromJson(json);
+      } else if (response.statusCode == 403) {
+        print('ApiService: Invalid API key');
+        return null;
+      } else if (response.statusCode == 404) {
+        print('ApiService: Subscription not found for username: $marzbanUsername');
+        return null;
+      }
+      return null;
+    } on TimeoutException {
+      print('ApiService: Request timeout');
+      return null;
+    } catch (e) {
+      print('ApiService.getSubscriptionByUsername error: $e');
       return null;
     }
   }
