@@ -174,20 +174,23 @@ class VlessConfig {
   String toSingboxConfig() {
     final config = {
       'log': {
-        'level': 'info',
+        'level': 'debug',
         'timestamp': true,
       },
       'dns': {
         'servers': [
           {
             'tag': 'dns-remote',
-            'address': 'https://1.1.1.1/dns-query',
+            'address': '1.1.1.1',
             'detour': 'proxy',
           },
           {
             'tag': 'dns-local',
-            'address': '8.8.8.8',
-            'detour': 'direct',
+            'address': 'local',
+          },
+          {
+            'tag': 'dns-block',
+            'address': 'rcode://success',
           },
         ],
         'rules': [
@@ -196,19 +199,28 @@ class VlessConfig {
             'server': 'dns-local',
           },
         ],
+        'final': 'dns-remote',
         'strategy': 'prefer_ipv4',
+        'independent_cache': true,
       },
       'inbounds': [
         {
           'type': 'tun',
           'tag': 'tun-in',
-          'interface_name': 'tun0',
           'inet4_address': '172.19.0.1/30',
+          'inet6_address': 'fdfe:dcba:9876::1/126',
+          'mtu': 9000,
           'auto_route': true,
-          'strict_route': true,
-          'stack': 'system',
+          'strict_route': false,
+          'endpoint_independent_nat': true,
+          'stack': 'mixed',  // 'mixed' is best for Android
+          'platform': {
+            'http_proxy': {
+              'enabled': false,
+            },
+          },
           'sniff': true,
-          'sniff_override_destination': true,
+          'sniff_override_destination': false,
         },
       ],
       'outbounds': [
@@ -228,6 +240,7 @@ class VlessConfig {
       ],
       'route': {
         'auto_detect_interface': true,
+        'override_android_vpn': true,
         'final': 'proxy',
         'rules': [
           {
@@ -236,6 +249,10 @@ class VlessConfig {
           },
           {
             'ip_is_private': true,
+            'outbound': 'direct',
+          },
+          {
+            'domain_suffix': ['.local', '.lan'],
             'outbound': 'direct',
           },
         ],
